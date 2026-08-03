@@ -5,17 +5,18 @@ import { Button } from '../../components/Button'
 import { Modal } from '../../components/Modal'
 import { FoodPicker } from '../../components/FoodPicker'
 import { MacroBar } from '../../components/MacroBar'
-import { addDays, formatDateLabel, todayKey } from '../../lib/date'
+import { DayStrip } from '../../components/DayStrip'
+import { todayKey } from '../../lib/date'
 import { macrosForQuantity, round1, sumMacros } from '../../lib/nutrition'
 import { useAddDiaryEntry, useDeleteDiaryEntry, useDiaryEntries } from '../diary/useDiary'
 import { useProfile } from '../profile/useProfile'
 import type { MealType } from '../../types/database'
 
-const meals: { type: MealType; label: string }[] = [
-  { type: 'breakfast', label: 'Frühstück' },
-  { type: 'lunch', label: 'Mittagessen' },
-  { type: 'dinner', label: 'Abendessen' },
-  { type: 'snack', label: 'Snacks' },
+const meals: { type: MealType; label: string; icon: string }[] = [
+  { type: 'breakfast', label: 'Frühstück', icon: '🍳' },
+  { type: 'lunch', label: 'Mittagessen', icon: '🍽️' },
+  { type: 'dinner', label: 'Abendessen', icon: '🌙' },
+  { type: 'snack', label: 'Snacks', icon: '🍿' },
 ]
 
 export function DashboardPage() {
@@ -31,15 +32,11 @@ export function DashboardPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <Button variant="ghost" onClick={() => setDate(addDays(date, -1))}>
-          ← Vorheriger Tag
-        </Button>
-        <h1 className="text-lg font-semibold text-gray-900">{formatDateLabel(date)}</h1>
-        <Button variant="ghost" onClick={() => setDate(addDays(date, 1))}>
-          Nächster Tag →
-        </Button>
-      </div>
+      <h1 className="mb-4 flex items-center gap-2 text-xl font-semibold text-gray-900">
+        <span>🏠</span> Übersicht
+      </h1>
+
+      <DayStrip selected={date} onSelect={setDate} />
 
       <Card className="mb-6 space-y-4">
         <MacroBar label="Kalorien" value={totals.calories} goal={profile?.daily_calorie_goal ?? null} unit="kcal" colorClass="bg-green-500" />
@@ -71,8 +68,10 @@ export function DashboardPage() {
           return (
             <Card key={meal.type}>
               <div className="mb-2 flex items-center justify-between">
-                <h2 className="font-medium text-gray-900">
-                  {meal.label} <span className="font-normal text-gray-500">· {Math.round(mealCalories)} kcal</span>
+                <h2 className="flex items-center gap-2 font-medium text-gray-900">
+                  <span>{meal.icon}</span>
+                  {meal.label}
+                  <span className="font-normal text-gray-500">· {Math.round(mealCalories)} kcal</span>
                 </h2>
                 <Button variant="ghost" onClick={() => setActiveMeal(meal.type)}>
                   + Hinzufügen

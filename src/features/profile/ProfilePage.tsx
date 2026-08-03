@@ -40,7 +40,9 @@ export function ProfilePage() {
 
   return (
     <div className="max-w-md">
-      <h1 className="mb-4 text-xl font-semibold text-gray-900">Profil & Ziele</h1>
+      <h1 className="mb-4 flex items-center gap-2 text-xl font-semibold text-gray-900">
+        <span>👤</span> Profil & Ziele
+      </h1>
       <Card>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

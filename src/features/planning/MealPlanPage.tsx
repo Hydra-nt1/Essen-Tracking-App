@@ -33,8 +33,14 @@ export function MealPlanPage() {
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 
+  const today = todayKey()
+
   return (
     <div>
+      <h1 className="mb-4 flex items-center gap-2 text-xl font-semibold text-gray-900">
+        <span>📅</span> Planung
+      </h1>
+
       <div className="mb-4 flex gap-1 rounded-lg bg-gray-100 p-1 text-sm w-fit">
         <button
           onClick={() => setTab('plan')}
@@ -66,8 +72,11 @@ export function MealPlanPage() {
 
           <div className="grid grid-cols-1 gap-3 overflow-x-auto sm:grid-cols-2 lg:grid-cols-7">
             {days.map((day) => (
-              <Card key={day} className="min-w-[160px]">
-                <p className="mb-2 text-sm font-semibold text-gray-900">{formatDateLabel(day)}</p>
+              <Card key={day} className={`min-w-[160px] ${day === today ? 'ring-2 ring-green-500' : ''}`}>
+                <p className="mb-2 text-sm font-semibold text-gray-900">
+                  {formatDateLabel(day)}
+                  {day === today && <span className="ml-1.5 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Heute</span>}
+                </p>
                 <div className="space-y-3">
                   {meals.map((meal) => {
                     const slotItems = items?.filter((i) => i.date === day && i.meal_type === meal.type) ?? []
@@ -135,7 +144,9 @@ export function MealPlanPage() {
       {tab === 'recipes' && (
         <div>
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Meine Rezepte</h2>
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+              <span>🍲</span> Meine Rezepte
+            </h2>
             <Button onClick={() => setShowRecipeModal(true)}>+ Rezept</Button>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

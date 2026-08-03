@@ -38,7 +38,9 @@ export function ShoppingListPage() {
 
   return (
     <div className="max-w-xl">
-      <h1 className="mb-4 text-xl font-semibold text-gray-900">Einkaufsliste</h1>
+      <h1 className="mb-4 flex items-center gap-2 text-xl font-semibold text-gray-900">
+        <span>🛒</span> Einkaufsliste
+      </h1>
 
       <Card className="mb-4">
         <p className="mb-2 text-sm font-medium text-gray-700">Aus Wochenplan generieren</p>

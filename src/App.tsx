@@ -4,7 +4,6 @@ import { LoginPage } from './features/auth/LoginPage'
 import { SignupPage } from './features/auth/SignupPage'
 import { ProtectedRoute } from './features/auth/ProtectedRoute'
 import { DashboardPage } from './features/dashboard/DashboardPage'
-import { DiaryPage } from './features/diary/DiaryPage'
 import { FoodLibraryPage } from './features/foods/FoodLibraryPage'
 import { WeightPage } from './features/weight/WeightPage'
 import { MealPlanPage } from './features/planning/MealPlanPage'
@@ -19,7 +18,6 @@ function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
           <Route path="/" element={<DashboardPage />} />
-          <Route path="/diary" element={<DiaryPage />} />
           <Route path="/foods" element={<FoodLibraryPage />} />
           <Route path="/weight" element={<WeightPage />} />
           <Route path="/planning" element={<MealPlanPage />} />

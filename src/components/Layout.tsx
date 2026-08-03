@@ -1,15 +1,14 @@
-import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../features/auth/AuthContext'
 
 const navItems = [
-  { to: '/', label: 'Übersicht', end: true },
-  { to: '/diary', label: 'Tagebuch' },
-  { to: '/foods', label: 'Lebensmittel' },
-  { to: '/weight', label: 'Gewicht' },
-  { to: '/planning', label: 'Planung' },
-  { to: '/shopping-list', label: 'Einkaufsliste' },
-  { to: '/profile', label: 'Profil' },
+  { to: '/', label: 'Übersicht', icon: '🏠', end: true },
+  { to: '/diary', label: 'Tagebuch', icon: '📔' },
+  { to: '/foods', label: 'Lebensmittel', icon: '🍎' },
+  { to: '/weight', label: 'Gewicht', icon: '⚖️' },
+  { to: '/planning', label: 'Planung', icon: '📅' },
+  { to: '/shopping-list', label: 'Einkaufsliste', icon: '🛒' },
+  { to: '/profile', label: 'Profil', icon: '👤' },
 ]
 
 function navLinkClass({ isActive }: { isActive: boolean }) {
@@ -18,9 +17,14 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
   }`
 }
 
+function bottomNavLinkClass({ isActive }: { isActive: boolean }) {
+  return `flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium ${
+    isActive ? 'text-green-700' : 'text-gray-500'
+  }`
+}
+
 export function Layout() {
   const { signOut } = useAuth()
-  const [menuOpen, setMenuOpen] = useState(false)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -43,37 +47,26 @@ export function Layout() {
           </nav>
 
           <button
-            onClick={() => setMenuOpen((open) => !open)}
-            className="rounded-md p-2 text-gray-600 hover:bg-gray-100 sm:hidden"
-            aria-label="Menü"
-            aria-expanded={menuOpen}
+            onClick={() => void signOut()}
+            className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-500 hover:bg-gray-100 sm:hidden"
           >
-            {menuOpen ? '✕' : '☰'}
+            Abmelden
           </button>
         </div>
-
-        {menuOpen && (
-          <nav className="flex flex-col gap-1 border-t border-gray-100 px-4 py-3 sm:hidden">
-            {navItems.map((item) => (
-              <NavLink key={item.to} to={item.to} end={item.end} className={navLinkClass} onClick={() => setMenuOpen(false)}>
-                {item.label}
-              </NavLink>
-            ))}
-            <button
-              onClick={() => {
-                setMenuOpen(false)
-                void signOut()
-              }}
-              className="rounded-md px-3 py-1.5 text-left text-sm font-medium text-gray-500 hover:bg-gray-100"
-            >
-              Abmelden
-            </button>
-          </nav>
-        )}
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-6">
+
+      <main className="mx-auto max-w-5xl px-4 pt-6 pb-24 sm:pb-6">
         <Outlet />
       </main>
+
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] sm:hidden">
+        {navItems.map((item) => (
+          <NavLink key={item.to} to={item.to} end={item.end} className={bottomNavLinkClass}>
+            <span className="text-lg leading-none">{item.icon}</span>
+            {item.label}
+          </NavLink>
+        ))}
+      </nav>
     </div>
   )
 }

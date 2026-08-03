@@ -53,3 +53,50 @@ export function macrosPerServing(recipe: RecipeForMacros): Macros {
     carbs: total.carbs / servings,
   }
 }
+
+export type Gender = 'male' | 'female'
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active'
+
+export const activityLabels: Record<ActivityLevel, string> = {
+  sedentary: 'Sitzend (kaum Bewegung)',
+  light: 'Leicht aktiv (1-3x Sport/Woche)',
+  moderate: 'Mäßig aktiv (3-5x Sport/Woche)',
+  active: 'Sehr aktiv (6-7x Sport/Woche)',
+  very_active: 'Extrem aktiv (körperliche Arbeit + Sport)',
+}
+
+const activityMultipliers: Record<ActivityLevel, number> = {
+  sedentary: 1.2,
+  light: 1.375,
+  moderate: 1.55,
+  active: 1.725,
+  very_active: 1.9,
+}
+
+interface TdeeParams {
+  gender: Gender
+  age: number
+  heightCm: number
+  weightKg: number
+  activity: ActivityLevel
+}
+
+export function calculateTdee({ gender, age, heightCm, weightKg, activity }: TdeeParams): number {
+  const bmr =
+    gender === 'male'
+      ? 10 * weightKg + 6.25 * heightCm - 5 * age + 5
+      : 10 * weightKg + 6.25 * heightCm - 5 * age - 161
+  return Math.round(bmr * activityMultipliers[activity])
+}
+
+export function macroCaloriePercentages(
+  goals: { protein: number; fat: number; carbs: number },
+  calorieGoal: number,
+): { protein: number; fat: number; carbs: number } {
+  if (!calorieGoal) return { protein: 0, fat: 0, carbs: 0 }
+  return {
+    protein: Math.round(((goals.protein * 4) / calorieGoal) * 100),
+    fat: Math.round(((goals.fat * 9) / calorieGoal) * 100),
+    carbs: Math.round(((goals.carbs * 4) / calorieGoal) * 100),
+  }
+}

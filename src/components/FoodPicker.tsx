@@ -6,6 +6,7 @@ import { useFrequentFoodsForMeal } from '../features/diary/useDiary'
 import { BarcodeNotFoundResolver } from '../features/foods/BarcodeNotFoundResolver'
 import { FoodForm } from '../features/foods/FoodForm'
 import { getFoodByBarcode, searchFoodsByName, type OpenFoodFactsResult } from '../lib/openFoodFacts'
+import { createSpeechRecognition } from '../lib/speechRecognition'
 import type { Food, MealType } from '../types/database'
 
 const BarcodeScanner = lazy(() => import('./BarcodeScanner').then((m) => ({ default: m.BarcodeScanner })))
@@ -53,6 +54,8 @@ export function FoodPicker({ onSelect, mealType, submitLabel = 'Hinzufügen' }: 
   const [reviewProduct, setReviewProduct] = useState<OpenFoodFactsResult | null>(null)
   const [selectedOwnFood, setSelectedOwnFood] = useState<Food | null>(null)
   const [quantity, setQuantity] = useState('100')
+  const [listening, setListening] = useState(false)
+  const [voiceError, setVoiceError] = useState<string | null>(null)
 
   const { data: ownFoods, isLoading: ownLoading } = useFoods(ownSearch)
   const { data: frequentFoods, isLoading: frequentLoading } = useFrequentFoodsForMeal(mealType)
@@ -78,6 +81,32 @@ export function FoodPicker({ onSelect, mealType, submitLabel = 'Hinzufügen' }: 
     } finally {
       setOffLoading(false)
     }
+  }
+
+  function startVoiceSearch() {
+    const recognition = createSpeechRecognition()
+    if (!recognition) {
+      setVoiceError('Spracheingabe wird von diesem Browser nicht unterstützt.')
+      return
+    }
+    setVoiceError(null)
+    recognition.lang = 'de-DE'
+    recognition.interimResults = false
+    recognition.maxAlternatives = 1
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript
+      if (transcript) {
+        setOwnSearch(transcript)
+        setOffResults(null)
+      }
+    }
+    recognition.onerror = () => {
+      setListening(false)
+      setVoiceError('Spracheingabe fehlgeschlagen. Bitte erneut versuchen oder tippen.')
+    }
+    recognition.onend = () => setListening(false)
+    setListening(true)
+    recognition.start()
   }
 
   async function handleOffPick(product: OpenFoodFactsResult) {
@@ -160,7 +189,7 @@ export function FoodPicker({ onSelect, mealType, submitLabel = 'Hinzufügen' }: 
 
       {mode === 'search' && !reviewProduct && (
         <div>
-          <form onSubmit={handleOffSearch} className="mb-3 flex gap-2">
+          <form onSubmit={handleOffSearch} className="mb-1 flex gap-2">
             <input
               value={ownSearch}
               onChange={(e) => {
@@ -171,7 +200,19 @@ export function FoodPicker({ onSelect, mealType, submitLabel = 'Hinzufügen' }: 
               placeholder={mealType ? `Was hattest du zum ${mealLabels[mealType]}?` : 'Lebensmittel suchen...'}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-green-500 focus:outline-none"
             />
+            <button
+              type="button"
+              onClick={startVoiceSearch}
+              disabled={listening}
+              aria-label="Spracheingabe"
+              className={`shrink-0 rounded-lg border px-3 text-lg ${
+                listening ? 'animate-pulse border-green-500 bg-green-50' : 'border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              🎤
+            </button>
           </form>
+          {voiceError && <p className="mb-2 text-xs text-red-600">{voiceError}</p>}
 
           {showFrequent && (
             <div className="mb-3">

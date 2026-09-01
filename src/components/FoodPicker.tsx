@@ -2,14 +2,22 @@ import { lazy, Suspense, useCallback, useState, type FormEvent } from 'react'
 import { Button } from './Button'
 import { useAuth } from '../features/auth/AuthContext'
 import { findFoodByBarcode, useCreateFood, useFoods, type NewFood } from '../features/foods/useFoods'
+import { useFrequentFoodsForMeal } from '../features/diary/useDiary'
 import { BarcodeNotFoundResolver } from '../features/foods/BarcodeNotFoundResolver'
 import { FoodForm } from '../features/foods/FoodForm'
 import { getFoodByBarcode, searchFoodsByName, type OpenFoodFactsResult } from '../lib/openFoodFacts'
-import type { Food } from '../types/database'
+import type { Food, MealType } from '../types/database'
 
 const BarcodeScanner = lazy(() => import('./BarcodeScanner').then((m) => ({ default: m.BarcodeScanner })))
 
-type Tab = 'own' | 'off' | 'scan'
+type Mode = 'search' | 'scan'
+
+const mealLabels: Record<MealType, string> = {
+  breakfast: 'Frühstück',
+  lunch: 'Mittagessen',
+  dinner: 'Abendessen',
+  snack: 'Snacks',
+}
 
 function toNewFoodInitial(product: OpenFoodFactsResult): Partial<NewFood> {
   return {
@@ -26,15 +34,15 @@ function toNewFoodInitial(product: OpenFoodFactsResult): Partial<NewFood> {
 
 interface FoodPickerProps {
   onSelect: (food: Food, quantityG: number) => void
+  mealType?: MealType
   submitLabel?: string
 }
 
-export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPickerProps) {
+export function FoodPicker({ onSelect, mealType, submitLabel = 'Hinzufügen' }: FoodPickerProps) {
   const { user } = useAuth()
-  const [tab, setTab] = useState<Tab>('off')
+  const [mode, setMode] = useState<Mode>('search')
   const [ownSearch, setOwnSearch] = useState('')
-  const [offSearch, setOffSearch] = useState('')
-  const [offResults, setOffResults] = useState<OpenFoodFactsResult[]>([])
+  const [offResults, setOffResults] = useState<OpenFoodFactsResult[] | null>(null)
   const [offLoading, setOffLoading] = useState(false)
   const [offError, setOffError] = useState<string | null>(null)
 
@@ -47,10 +55,11 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
   const [quantity, setQuantity] = useState('100')
 
   const { data: ownFoods, isLoading: ownLoading } = useFoods(ownSearch)
+  const { data: frequentFoods, isLoading: frequentLoading } = useFrequentFoodsForMeal(mealType)
   const createFood = useCreateFood()
 
-  function switchTab(next: Tab) {
-    setTab(next)
+  function switchMode(next: Mode) {
+    setMode(next)
     setSelectedOwnFood(null)
     setReviewProduct(null)
     setScanError(null)
@@ -59,12 +68,11 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
 
   async function handleOffSearch(e: FormEvent) {
     e.preventDefault()
-    if (!offSearch.trim()) return
+    if (!ownSearch.trim()) return
     setOffLoading(true)
     setOffError(null)
     try {
-      const results = await searchFoodsByName(offSearch.trim())
-      setOffResults(results)
+      setOffResults(await searchFoodsByName(ownSearch.trim()))
     } catch {
       setOffError('Suche fehlgeschlagen. Bitte später erneut versuchen.')
     } finally {
@@ -123,97 +131,153 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
     onSelect(selectedOwnFood, quantityG)
   }
 
+  const showFrequent = !ownSearch.trim() && !offResults && mealType
+
   return (
     <div>
-      <div className="mb-3 flex gap-1 rounded-lg bg-gray-100 p-1 text-sm">
+      <div className="mb-3 flex gap-2">
         <button
           type="button"
-          onClick={() => switchTab('off')}
-          className={`flex-1 rounded-md px-2 py-1.5 font-medium ${tab === 'off' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
+          onClick={() => switchMode('search')}
+          className={`flex flex-1 flex-col items-center gap-1 rounded-xl border-2 py-3 text-sm font-medium ${
+            mode === 'search' ? 'border-green-500 bg-green-50 text-green-800' : 'border-gray-200 text-gray-600'
+          }`}
         >
-          Online suchen
+          <span className="text-xl">🔍</span>
+          Suche
         </button>
         <button
           type="button"
-          onClick={() => switchTab('own')}
-          className={`flex-1 rounded-md px-2 py-1.5 font-medium ${tab === 'own' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
+          onClick={() => switchMode('scan')}
+          className={`flex flex-1 flex-col items-center gap-1 rounded-xl border-2 py-3 text-sm font-medium ${
+            mode === 'scan' ? 'border-green-500 bg-green-50 text-green-800' : 'border-gray-200 text-gray-600'
+          }`}
         >
-          Meine Lebensmittel
-        </button>
-        <button
-          type="button"
-          onClick={() => switchTab('scan')}
-          className={`flex-1 rounded-md px-2 py-1.5 font-medium ${tab === 'scan' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
-        >
-          📷 Scannen
+          <span className="text-xl">📷</span>
+          Scannen
         </button>
       </div>
 
-      {tab === 'off' && !reviewProduct && (
+      {mode === 'search' && !reviewProduct && (
         <div>
-          <form onSubmit={handleOffSearch} className="mb-2 flex gap-2">
+          <form onSubmit={handleOffSearch} className="mb-3 flex gap-2">
             <input
-              value={offSearch}
-              onChange={(e) => setOffSearch(e.target.value)}
-              placeholder="z.B. Nutella"
+              value={ownSearch}
+              onChange={(e) => {
+                setOwnSearch(e.target.value)
+                setOffResults(null)
+                setOffError(null)
+              }}
+              placeholder={mealType ? `Was hattest du zum ${mealLabels[mealType]}?` : 'Lebensmittel suchen...'}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-green-500 focus:outline-none"
             />
-            <Button type="submit" variant="secondary" disabled={offLoading}>
-              {offLoading ? '...' : 'Suchen'}
-            </Button>
           </form>
-          {offError && <p className="text-sm text-red-600">{offError}</p>}
-          <div className="max-h-48 space-y-1 overflow-y-auto">
-            {offResults.map((product) => (
+
+          {showFrequent && (
+            <div className="mb-3">
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                Häufig bei {mealLabels[mealType]}
+              </p>
+              {frequentLoading && <p className="text-sm text-gray-500">Lädt...</p>}
+              {!frequentLoading && frequentFoods?.length === 0 && (
+                <p className="text-sm text-gray-400">Noch keine Historie für diese Mahlzeit.</p>
+              )}
+              <div className="max-h-56 space-y-1 overflow-y-auto">
+                {frequentFoods?.map(({ food, lastQuantityG }) => (
+                  <div
+                    key={food.id}
+                    className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2"
+                  >
+                    <div className="text-sm">
+                      <span className="font-medium text-gray-900">{food.name}</span>
+                      <span className="text-gray-500">
+                        {' '}
+                        · {lastQuantityG}g ({Math.round((food.calories_per_100g * lastQuantityG) / 100)} kcal)
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onSelect(food, lastQuantityG)}
+                      aria-label={`${food.name} hinzufügen`}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-green-500 text-lg leading-none text-green-600 hover:bg-green-50"
+                    >
+                      +
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {ownSearch.trim() && !offResults && (
+            <div className="mb-3">
+              {ownLoading && <p className="text-sm text-gray-500">Lädt...</p>}
+              <div className="max-h-56 space-y-1 overflow-y-auto">
+                {ownFoods?.map((food) => (
+                  <button
+                    key={food.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedOwnFood(food)
+                      setReviewProduct(null)
+                    }}
+                    className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
+                      selectedOwnFood?.id === food.id ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="font-medium text-gray-900">{food.name}</span>{' '}
+                    <span className="text-gray-500">· {Math.round(food.calories_per_100g)} kcal/100g</span>
+                  </button>
+                ))}
+                {ownFoods?.length === 0 && !ownLoading && (
+                  <p className="text-sm text-gray-500">Keine Treffer in deiner Bibliothek.</p>
+                )}
+              </div>
               <button
-                key={product.barcode}
                 type="button"
-                onClick={() => handleOffPick(product)}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-left text-sm hover:bg-gray-50"
+                onClick={handleOffSearch}
+                disabled={offLoading}
+                className="mt-2 text-sm font-medium text-green-700 hover:underline"
               >
-                <span className="font-medium text-gray-900">{product.name}</span>
-                {product.brand && <span className="text-gray-500"> ({product.brand})</span>}{' '}
-                <span className="text-gray-500">· {Math.round(product.calories_per_100g)} kcal/100g</span>
+                {offLoading ? 'Suche online...' : 'Auch online durchsuchen →'}
               </button>
-            ))}
-          </div>
+            </div>
+          )}
+
+          {offResults && (
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Online-Ergebnisse</p>
+                <button
+                  type="button"
+                  onClick={() => setOffResults(null)}
+                  className="text-xs text-gray-500 hover:underline"
+                >
+                  Zurück
+                </button>
+              </div>
+              {offError && <p className="text-sm text-red-600">{offError}</p>}
+              <div className="max-h-56 space-y-1 overflow-y-auto">
+                {offResults.map((product) => (
+                  <button
+                    key={product.barcode}
+                    type="button"
+                    onClick={() => handleOffPick(product)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-left text-sm hover:bg-gray-50"
+                  >
+                    <span className="font-medium text-gray-900">{product.name}</span>
+                    {product.brand && <span className="text-gray-500"> ({product.brand})</span>}{' '}
+                    <span className="text-gray-500">· {Math.round(product.calories_per_100g)} kcal/100g</span>
+                  </button>
+                ))}
+                {offResults.length === 0 && <p className="text-sm text-gray-500">Keine Online-Treffer.</p>}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {tab === 'own' && (
-        <div>
-          <input
-            value={ownSearch}
-            onChange={(e) => setOwnSearch(e.target.value)}
-            placeholder="Suchen..."
-            className="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-green-500 focus:outline-none"
-          />
-          {ownLoading && <p className="text-sm text-gray-500">Lädt...</p>}
-          <div className="max-h-48 space-y-1 overflow-y-auto">
-            {ownFoods?.map((food) => (
-              <button
-                key={food.id}
-                type="button"
-                onClick={() => {
-                  setSelectedOwnFood(food)
-                  setReviewProduct(null)
-                }}
-                className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
-                  selectedOwnFood?.id === food.id ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:bg-gray-50'
-                }`}
-              >
-                <span className="font-medium text-gray-900">{food.name}</span>{' '}
-                <span className="text-gray-500">· {Math.round(food.calories_per_100g)} kcal/100g</span>
-              </button>
-            ))}
-            {ownFoods?.length === 0 && !ownLoading && (
-              <p className="text-sm text-gray-500">Keine Treffer.</p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {tab === 'scan' && (
+      {mode === 'scan' && (
         <div>
           {!selectedOwnFood && !reviewProduct && !scanLoading && !scanError && !notFoundBarcode && (
             <Suspense fallback={<p className="text-sm text-gray-500">Lädt Scanner...</p>}>

@@ -3,16 +3,17 @@ import { Button } from '../../components/Button'
 import { FoodPicker } from '../../components/FoodPicker'
 import { macrosPerServing } from '../../lib/nutrition'
 import { useRecipes } from './useRecipes'
-import type { Food } from '../../types/database'
+import type { Food, MealType } from '../../types/database'
 
 type Tab = 'food' | 'recipe'
 
 interface AddPlanItemDialogProps {
+  mealType: MealType
   onSelectFood: (food: Food, quantityG: number) => void
   onSelectRecipe: (recipeId: string, servings: number) => void
 }
 
-export function AddPlanItemDialog({ onSelectFood, onSelectRecipe }: AddPlanItemDialogProps) {
+export function AddPlanItemDialog({ mealType, onSelectFood, onSelectRecipe }: AddPlanItemDialogProps) {
   const [tab, setTab] = useState<Tab>('food')
   const { data: recipes } = useRecipes()
   const [selectedRecipeId, setSelectedRecipeId] = useState('')
@@ -37,7 +38,7 @@ export function AddPlanItemDialog({ onSelectFood, onSelectRecipe }: AddPlanItemD
         </button>
       </div>
 
-      {tab === 'food' && <FoodPicker onSelect={onSelectFood} />}
+      {tab === 'food' && <FoodPicker mealType={mealType} onSelect={onSelectFood} />}
 
       {tab === 'recipe' && (
         <div>

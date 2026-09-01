@@ -90,6 +90,7 @@ export function MealPlanPage() {
       >
         {activeSlot && (
           <AddPlanItemDialog
+            mealType={activeSlot.meal}
             onSelectFood={async (food, quantityG) => {
               await addItem.mutateAsync({
                 date: activeSlot.date,

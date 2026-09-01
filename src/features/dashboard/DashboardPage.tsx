@@ -112,13 +112,15 @@ export function DashboardPage() {
         onClose={() => setActiveMeal(null)}
         title={`${meals.find((m) => m.type === activeMeal)?.label ?? ''} – Lebensmittel hinzufügen`}
       >
-        <FoodPicker
-          onSelect={async (food, quantityG) => {
-            if (!activeMeal) return
-            await addEntry.mutateAsync({ food_id: food.id, date, meal_type: activeMeal, quantity_g: round1(quantityG) })
-            setActiveMeal(null)
-          }}
-        />
+        {activeMeal && (
+          <FoodPicker
+            mealType={activeMeal}
+            onSelect={async (food, quantityG) => {
+              await addEntry.mutateAsync({ food_id: food.id, date, meal_type: activeMeal, quantity_g: round1(quantityG) })
+              setActiveMeal(null)
+            }}
+          />
+        )}
       </Modal>
     </div>
   )

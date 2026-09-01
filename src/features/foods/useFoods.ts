@@ -19,6 +19,17 @@ export function useFoods(search = '') {
   })
 }
 
+export async function findFoodByBarcode(userId: string, barcode: string): Promise<Food | null> {
+  const { data, error } = await supabase
+    .from('foods')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('barcode', barcode)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
 export type NewFood = Omit<Food, 'id' | 'user_id' | 'created_at'>
 
 export function useCreateFood() {

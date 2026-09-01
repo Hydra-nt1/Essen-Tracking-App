@@ -1,7 +1,9 @@
 import { lazy, Suspense, useCallback, useState, type FormEvent } from 'react'
 import { Button } from './Button'
-import { useFoods } from '../features/foods/useFoods'
+import { useAuth } from '../features/auth/AuthContext'
+import { findFoodByBarcode, useCreateFood, useFoods } from '../features/foods/useFoods'
 import { useImportOpenFoodFactsFood } from '../features/foods/useImportOpenFoodFactsFood'
+import { FoodForm } from '../features/foods/FoodForm'
 import { getFoodByBarcode, searchFoodsByName, type OpenFoodFactsResult } from '../lib/openFoodFacts'
 import type { Food } from '../types/database'
 
@@ -15,6 +17,7 @@ interface FoodPickerProps {
 }
 
 export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPickerProps) {
+  const { user } = useAuth()
   const [tab, setTab] = useState<Tab>('off')
   const [ownSearch, setOwnSearch] = useState('')
   const [offSearch, setOffSearch] = useState('')
@@ -24,6 +27,7 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
 
   const [scanLoading, setScanLoading] = useState(false)
   const [scanError, setScanError] = useState<string | null>(null)
+  const [notFoundBarcode, setNotFoundBarcode] = useState<string | null>(null)
 
   const [selectedOwnFood, setSelectedOwnFood] = useState<Food | null>(null)
   const [selectedOffProduct, setSelectedOffProduct] = useState<OpenFoodFactsResult | null>(null)
@@ -32,12 +36,14 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
 
   const { data: ownFoods, isLoading: ownLoading } = useFoods(ownSearch)
   const importOffFood = useImportOpenFoodFactsFood()
+  const createFood = useCreateFood()
 
   function switchTab(next: Tab) {
     setTab(next)
     setSelectedOwnFood(null)
     setSelectedOffProduct(null)
     setScanError(null)
+    setNotFoundBarcode(null)
   }
 
   async function handleOffSearch(e: FormEvent) {
@@ -55,23 +61,33 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
     }
   }
 
-  const handleBarcodeDetected = useCallback(async (code: string) => {
-    setScanLoading(true)
-    setScanError(null)
-    try {
-      const product = await getFoodByBarcode(code)
-      if (!product) {
-        setScanError(`Kein Produkt für Barcode ${code} gefunden. Du kannst es unter "Meine Lebensmittel" manuell anlegen.`)
-        return
+  const handleBarcodeDetected = useCallback(
+    async (code: string) => {
+      setScanLoading(true)
+      setScanError(null)
+      setNotFoundBarcode(null)
+      try {
+        const ownMatch = await findFoodByBarcode(user!.id, code)
+        if (ownMatch) {
+          setSelectedOwnFood(ownMatch)
+          setSelectedOffProduct(null)
+          return
+        }
+        const product = await getFoodByBarcode(code)
+        if (product) {
+          setSelectedOffProduct(product)
+          setSelectedOwnFood(null)
+          return
+        }
+        setNotFoundBarcode(code)
+      } catch {
+        setScanError('Abfrage fehlgeschlagen. Bitte später erneut versuchen.')
+      } finally {
+        setScanLoading(false)
       }
-      setSelectedOffProduct(product)
-      setSelectedOwnFood(null)
-    } catch {
-      setScanError('Abfrage fehlgeschlagen. Bitte später erneut versuchen.')
-    } finally {
-      setScanLoading(false)
-    }
-  }, [])
+    },
+    [user],
+  )
 
   async function handleConfirm() {
     const quantityG = Number(quantity)
@@ -93,6 +109,7 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
   }
 
   const hasSelection = !!selectedOwnFood || !!selectedOffProduct
+  const scanResult = selectedOwnFood ?? selectedOffProduct
 
   return (
     <div>
@@ -193,7 +210,7 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
 
       {tab === 'scan' && (
         <div>
-          {!selectedOffProduct && !scanLoading && !scanError && (
+          {!scanResult && !scanLoading && !scanError && !notFoundBarcode && (
             <Suspense fallback={<p className="text-sm text-gray-500">Lädt Scanner...</p>}>
               <BarcodeScanner onDetected={handleBarcodeDetected} />
             </Suspense>
@@ -211,16 +228,43 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
               </button>
             </div>
           )}
-          {selectedOffProduct && (
+          {notFoundBarcode && (
+            <div>
+              <p className="mb-2 text-sm text-gray-600">
+                Kein Produkt für Barcode <span className="font-mono">{notFoundBarcode}</span> gefunden. Leg es einmal
+                an, dann wird es beim nächsten Scan sofort erkannt:
+              </p>
+              <FoodForm
+                initial={{ barcode: notFoundBarcode }}
+                submitLabel="Anlegen & auswählen"
+                onSubmit={async (food) => {
+                  const created = await createFood.mutateAsync(food)
+                  setSelectedOwnFood(created)
+                  setNotFoundBarcode(null)
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setNotFoundBarcode(null)}
+                className="mt-2 text-xs text-gray-500 hover:underline"
+              >
+                Abbrechen, erneut scannen
+              </button>
+            </div>
+          )}
+          {scanResult && (
             <div className="flex items-center justify-between rounded-lg border border-green-500 bg-green-50 px-3 py-2 text-sm">
               <span>
-                <span className="font-medium text-gray-900">{selectedOffProduct.name}</span>
-                {selectedOffProduct.brand && <span className="text-gray-500"> ({selectedOffProduct.brand})</span>}{' '}
-                <span className="text-gray-500">· {Math.round(selectedOffProduct.calories_per_100g)} kcal/100g</span>
+                <span className="font-medium text-gray-900">{scanResult.name}</span>
+                {scanResult.brand && <span className="text-gray-500"> ({scanResult.brand})</span>}{' '}
+                <span className="text-gray-500">· {Math.round(scanResult.calories_per_100g)} kcal/100g</span>
               </span>
               <button
                 type="button"
-                onClick={() => setSelectedOffProduct(null)}
+                onClick={() => {
+                  setSelectedOwnFood(null)
+                  setSelectedOffProduct(null)
+                }}
                 className="shrink-0 text-xs text-gray-500 hover:underline"
               >
                 Anderen scannen

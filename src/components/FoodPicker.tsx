@@ -1,9 +1,9 @@
 import { lazy, Suspense, useCallback, useState, type FormEvent } from 'react'
 import { Button } from './Button'
 import { useAuth } from '../features/auth/AuthContext'
-import { findFoodByBarcode, useCreateFood, useFoods } from '../features/foods/useFoods'
+import { findFoodByBarcode, useFoods } from '../features/foods/useFoods'
 import { useImportOpenFoodFactsFood } from '../features/foods/useImportOpenFoodFactsFood'
-import { FoodForm } from '../features/foods/FoodForm'
+import { BarcodeNotFoundResolver } from '../features/foods/BarcodeNotFoundResolver'
 import { getFoodByBarcode, searchFoodsByName, type OpenFoodFactsResult } from '../lib/openFoodFacts'
 import type { Food } from '../types/database'
 
@@ -36,7 +36,6 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
 
   const { data: ownFoods, isLoading: ownLoading } = useFoods(ownSearch)
   const importOffFood = useImportOpenFoodFactsFood()
-  const createFood = useCreateFood()
 
   function switchTab(next: Tab) {
     setTab(next)
@@ -229,28 +228,14 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
             </div>
           )}
           {notFoundBarcode && (
-            <div>
-              <p className="mb-2 text-sm text-gray-600">
-                Kein Produkt für Barcode <span className="font-mono">{notFoundBarcode}</span> gefunden. Leg es einmal
-                an, dann wird es beim nächsten Scan sofort erkannt:
-              </p>
-              <FoodForm
-                initial={{ barcode: notFoundBarcode }}
-                submitLabel="Anlegen & auswählen"
-                onSubmit={async (food) => {
-                  const created = await createFood.mutateAsync(food)
-                  setSelectedOwnFood(created)
-                  setNotFoundBarcode(null)
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => setNotFoundBarcode(null)}
-                className="mt-2 text-xs text-gray-500 hover:underline"
-              >
-                Abbrechen, erneut scannen
-              </button>
-            </div>
+            <BarcodeNotFoundResolver
+              barcode={notFoundBarcode}
+              onCreated={(food) => {
+                setSelectedOwnFood(food)
+                setNotFoundBarcode(null)
+              }}
+              onCancel={() => setNotFoundBarcode(null)}
+            />
           )}
           {scanResult && (
             <div className="flex items-center justify-between rounded-lg border border-green-500 bg-green-50 px-3 py-2 text-sm">

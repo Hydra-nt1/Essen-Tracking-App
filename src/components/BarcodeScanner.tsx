@@ -12,14 +12,8 @@ hints.set(DecodeHintType.POSSIBLE_FORMATS, [
 ])
 hints.set(DecodeHintType.TRY_HARDER, true)
 
-const videoConstraints: MediaStreamConstraints = {
-  video: {
-    facingMode: { ideal: 'environment' },
-    width: { ideal: 1280 },
-    height: { ideal: 720 },
-    // @ts-expect-error focusMode isn't in the standard MediaTrackConstraints TS typing yet
-    advanced: [{ focusMode: 'continuous' }],
-  },
+interface FocusCapableCapabilities extends MediaTrackCapabilities {
+  focusMode?: string[]
 }
 
 interface BarcodeScannerProps {
@@ -31,30 +25,74 @@ export function BarcodeScanner({ onDetected }: BarcodeScannerProps) {
   const onDetectedRef = useRef(onDetected)
   onDetectedRef.current = onDetected
   const [error, setError] = useState<string | null>(null)
+  const [autofocusSupported, setAutofocusSupported] = useState<boolean | null>(null)
 
   useEffect(() => {
-    const reader = new BrowserMultiFormatReader(hints)
-    let controls: IScannerControls | undefined
     let stopped = false
+    let stream: MediaStream | undefined
+    let controls: IScannerControls | undefined
 
-    reader
-      .decodeFromConstraints(videoConstraints, videoRef.current!, (result) => {
-        if (result && !stopped) {
-          stopped = true
-          controls?.stop()
-          onDetectedRef.current(result.getText())
+    async function start() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        })
+      } catch {
+        if (!stopped) {
+          setError('Kamera konnte nicht gestartet werden. Bitte Zugriff in den Browser-Einstellungen erlauben.')
         }
-      })
-      .then((c) => {
-        controls = c
-      })
-      .catch(() => {
-        setError('Kamera konnte nicht gestartet werden. Bitte Zugriff in den Browser-Einstellungen erlauben.')
-      })
+        return
+      }
+
+      if (stopped) {
+        stream.getTracks().forEach((t) => t.stop())
+        return
+      }
+
+      const [track] = stream.getVideoTracks()
+      try {
+        const capabilities = track.getCapabilities() as FocusCapableCapabilities
+        const supportsContinuous = !!capabilities.focusMode?.includes('continuous')
+        setAutofocusSupported(supportsContinuous)
+        if (supportsContinuous) {
+          await track.applyConstraints({
+            // @ts-expect-error focusMode isn't in the standard MediaTrackConstraints TS typing yet
+            advanced: [{ focusMode: 'continuous' }],
+          })
+        }
+      } catch {
+        setAutofocusSupported(false)
+      }
+
+      if (stopped || !videoRef.current) {
+        stream.getTracks().forEach((t) => t.stop())
+        return
+      }
+
+      const reader = new BrowserMultiFormatReader(hints)
+      try {
+        controls = await reader.decodeFromStream(stream, videoRef.current, (result) => {
+          if (result && !stopped) {
+            stopped = true
+            controls?.stop()
+            onDetectedRef.current(result.getText())
+          }
+        })
+      } catch {
+        if (!stopped) setError('Scanner konnte nicht gestartet werden.')
+      }
+    }
+
+    start()
 
     return () => {
       stopped = true
       controls?.stop()
+      stream?.getTracks().forEach((t) => t.stop())
     }
   }, [])
 
@@ -69,7 +107,9 @@ export function BarcodeScanner({ onDetected }: BarcodeScannerProps) {
             <div className="pointer-events-none absolute inset-x-6 top-1/2 h-16 -translate-y-1/2 rounded border-2 border-green-400/80" />
           </div>
           <p className="mt-2 text-center text-xs text-gray-500">
-            Barcode mittig im Rahmen halten, scharf und gut ausgeleuchtet, ca. 10–15 cm Abstand.
+            Barcode mittig im Rahmen halten, scharf und gut ausgeleuchtet.
+            {autofocusSupported === false &&
+              ' Dieses Gerät fokussiert nicht automatisch nah — Handy langsam näher/weiter bewegen, bis das Bild scharf wird.'}
           </p>
         </>
       )}

@@ -6,6 +6,7 @@ import { ProtectedRoute } from './features/auth/ProtectedRoute'
 import { DashboardPage } from './features/dashboard/DashboardPage'
 import { FoodLibraryPage } from './features/foods/FoodLibraryPage'
 import { MealPlanPage } from './features/planning/MealPlanPage'
+import { RecipesPage } from './features/planning/RecipesPage'
 import { ShoppingListPage } from './features/shopping-list/ShoppingListPage'
 import { ProfilePage } from './features/profile/ProfilePage'
 
@@ -18,6 +19,7 @@ function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/foods" element={<FoodLibraryPage />} />
+          <Route path="/recipes" element={<RecipesPage />} />
           <Route path="/planning" element={<MealPlanPage />} />
           <Route path="/shopping-list" element={<ShoppingListPage />} />
           <Route path="/profile" element={<ProfilePage />} />

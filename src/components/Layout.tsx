@@ -4,6 +4,7 @@ import { useAuth } from '../features/auth/AuthContext'
 const navItems = [
   { to: '/', label: 'Übersicht', icon: '🏠', end: true },
   { to: '/foods', label: 'Lebensmittel', icon: '🍎' },
+  { to: '/recipes', label: 'Rezepte', icon: '🍲' },
   { to: '/planning', label: 'Planung', icon: '📅' },
   { to: '/shopping-list', label: 'Einkaufsliste', icon: '🛒' },
   { to: '/profile', label: 'Profil', icon: '👤' },

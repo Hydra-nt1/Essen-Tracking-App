@@ -1,11 +1,13 @@
-import { useState, type FormEvent } from 'react'
+import { lazy, Suspense, useCallback, useState, type FormEvent } from 'react'
 import { Button } from './Button'
 import { useFoods } from '../features/foods/useFoods'
 import { useImportOpenFoodFactsFood } from '../features/foods/useImportOpenFoodFactsFood'
-import { searchFoodsByName, type OpenFoodFactsResult } from '../lib/openFoodFacts'
+import { getFoodByBarcode, searchFoodsByName, type OpenFoodFactsResult } from '../lib/openFoodFacts'
 import type { Food } from '../types/database'
 
-type Tab = 'own' | 'off'
+const BarcodeScanner = lazy(() => import('./BarcodeScanner').then((m) => ({ default: m.BarcodeScanner })))
+
+type Tab = 'own' | 'off' | 'scan'
 
 interface FoodPickerProps {
   onSelect: (food: Food, quantityG: number) => void
@@ -20,6 +22,9 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
   const [offLoading, setOffLoading] = useState(false)
   const [offError, setOffError] = useState<string | null>(null)
 
+  const [scanLoading, setScanLoading] = useState(false)
+  const [scanError, setScanError] = useState<string | null>(null)
+
   const [selectedOwnFood, setSelectedOwnFood] = useState<Food | null>(null)
   const [selectedOffProduct, setSelectedOffProduct] = useState<OpenFoodFactsResult | null>(null)
   const [quantity, setQuantity] = useState('100')
@@ -27,6 +32,13 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
 
   const { data: ownFoods, isLoading: ownLoading } = useFoods(ownSearch)
   const importOffFood = useImportOpenFoodFactsFood()
+
+  function switchTab(next: Tab) {
+    setTab(next)
+    setSelectedOwnFood(null)
+    setSelectedOffProduct(null)
+    setScanError(null)
+  }
 
   async function handleOffSearch(e: FormEvent) {
     e.preventDefault()
@@ -42,6 +54,24 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
       setOffLoading(false)
     }
   }
+
+  const handleBarcodeDetected = useCallback(async (code: string) => {
+    setScanLoading(true)
+    setScanError(null)
+    try {
+      const product = await getFoodByBarcode(code)
+      if (!product) {
+        setScanError(`Kein Produkt für Barcode ${code} gefunden. Du kannst es unter "Meine Lebensmittel" manuell anlegen.`)
+        return
+      }
+      setSelectedOffProduct(product)
+      setSelectedOwnFood(null)
+    } catch {
+      setScanError('Abfrage fehlgeschlagen. Bitte später erneut versuchen.')
+    } finally {
+      setScanLoading(false)
+    }
+  }, [])
 
   async function handleConfirm() {
     const quantityG = Number(quantity)
@@ -69,17 +99,24 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
       <div className="mb-3 flex gap-1 rounded-lg bg-gray-100 p-1 text-sm">
         <button
           type="button"
-          onClick={() => setTab('own')}
-          className={`flex-1 rounded-md px-3 py-1.5 font-medium ${tab === 'own' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
+          onClick={() => switchTab('own')}
+          className={`flex-1 rounded-md px-2 py-1.5 font-medium ${tab === 'own' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
         >
           Meine Lebensmittel
         </button>
         <button
           type="button"
-          onClick={() => setTab('off')}
-          className={`flex-1 rounded-md px-3 py-1.5 font-medium ${tab === 'off' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
+          onClick={() => switchTab('off')}
+          className={`flex-1 rounded-md px-2 py-1.5 font-medium ${tab === 'off' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
         >
           Open Food Facts
+        </button>
+        <button
+          type="button"
+          onClick={() => switchTab('scan')}
+          className={`flex-1 rounded-md px-2 py-1.5 font-medium ${tab === 'scan' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
+        >
+          📷 Scannen
         </button>
       </div>
 
@@ -151,6 +188,45 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {tab === 'scan' && (
+        <div>
+          {!selectedOffProduct && !scanLoading && !scanError && (
+            <Suspense fallback={<p className="text-sm text-gray-500">Lädt Scanner...</p>}>
+              <BarcodeScanner onDetected={handleBarcodeDetected} />
+            </Suspense>
+          )}
+          {scanLoading && <p className="text-sm text-gray-500">Suche Produkt...</p>}
+          {scanError && (
+            <div>
+              <p className="text-sm text-red-600">{scanError}</p>
+              <button
+                type="button"
+                onClick={() => setScanError(null)}
+                className="mt-2 text-sm font-medium text-green-700 hover:underline"
+              >
+                Erneut scannen
+              </button>
+            </div>
+          )}
+          {selectedOffProduct && (
+            <div className="flex items-center justify-between rounded-lg border border-green-500 bg-green-50 px-3 py-2 text-sm">
+              <span>
+                <span className="font-medium text-gray-900">{selectedOffProduct.name}</span>
+                {selectedOffProduct.brand && <span className="text-gray-500"> ({selectedOffProduct.brand})</span>}{' '}
+                <span className="text-gray-500">· {Math.round(selectedOffProduct.calories_per_100g)} kcal/100g</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedOffProduct(null)}
+                className="shrink-0 text-xs text-gray-500 hover:underline"
+              >
+                Anderen scannen
+              </button>
+            </div>
+          )}
         </div>
       )}
 

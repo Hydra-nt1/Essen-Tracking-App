@@ -10,6 +10,17 @@ hints.set(DecodeHintType.POSSIBLE_FORMATS, [
   BarcodeFormat.UPC_E,
   BarcodeFormat.CODE_128,
 ])
+hints.set(DecodeHintType.TRY_HARDER, true)
+
+const videoConstraints: MediaStreamConstraints = {
+  video: {
+    facingMode: { ideal: 'environment' },
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+    // @ts-expect-error focusMode isn't in the standard MediaTrackConstraints TS typing yet
+    advanced: [{ focusMode: 'continuous' }],
+  },
+}
 
 interface BarcodeScannerProps {
   onDetected: (code: string) => void
@@ -27,7 +38,7 @@ export function BarcodeScanner({ onDetected }: BarcodeScannerProps) {
     let stopped = false
 
     reader
-      .decodeFromConstraints({ video: { facingMode: { ideal: 'environment' } } }, videoRef.current!, (result) => {
+      .decodeFromConstraints(videoConstraints, videoRef.current!, (result) => {
         if (result && !stopped) {
           stopped = true
           controls?.stop()
@@ -53,8 +64,13 @@ export function BarcodeScanner({ onDetected }: BarcodeScannerProps) {
         <p className="text-sm text-red-600">{error}</p>
       ) : (
         <>
-          <video ref={videoRef} className="w-full rounded-lg bg-black" muted autoPlay playsInline />
-          <p className="mt-2 text-center text-xs text-gray-500">Barcode vor die Kamera halten...</p>
+          <div className="relative overflow-hidden rounded-lg bg-black">
+            <video ref={videoRef} className="w-full" muted autoPlay playsInline />
+            <div className="pointer-events-none absolute inset-x-6 top-1/2 h-16 -translate-y-1/2 rounded border-2 border-green-400/80" />
+          </div>
+          <p className="mt-2 text-center text-xs text-gray-500">
+            Barcode mittig im Rahmen halten, scharf und gut ausgeleuchtet, ca. 10–15 cm Abstand.
+          </p>
         </>
       )}
     </div>

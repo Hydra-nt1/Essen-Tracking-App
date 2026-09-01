@@ -1,15 +1,28 @@
 import { lazy, Suspense, useCallback, useState, type FormEvent } from 'react'
 import { Button } from './Button'
 import { useAuth } from '../features/auth/AuthContext'
-import { findFoodByBarcode, useFoods } from '../features/foods/useFoods'
-import { useImportOpenFoodFactsFood } from '../features/foods/useImportOpenFoodFactsFood'
+import { findFoodByBarcode, useCreateFood, useFoods, type NewFood } from '../features/foods/useFoods'
 import { BarcodeNotFoundResolver } from '../features/foods/BarcodeNotFoundResolver'
+import { FoodForm } from '../features/foods/FoodForm'
 import { getFoodByBarcode, searchFoodsByName, type OpenFoodFactsResult } from '../lib/openFoodFacts'
 import type { Food } from '../types/database'
 
 const BarcodeScanner = lazy(() => import('./BarcodeScanner').then((m) => ({ default: m.BarcodeScanner })))
 
 type Tab = 'own' | 'off' | 'scan'
+
+function toNewFoodInitial(product: OpenFoodFactsResult): Partial<NewFood> {
+  return {
+    name: product.name,
+    brand: product.brand,
+    barcode: product.barcode,
+    calories_per_100g: product.calories_per_100g,
+    protein_per_100g: product.protein_per_100g,
+    fat_per_100g: product.fat_per_100g,
+    carbs_per_100g: product.carbs_per_100g,
+    source: 'openfoodfacts',
+  }
+}
 
 interface FoodPickerProps {
   onSelect: (food: Food, quantityG: number) => void
@@ -29,18 +42,17 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
   const [scanError, setScanError] = useState<string | null>(null)
   const [notFoundBarcode, setNotFoundBarcode] = useState<string | null>(null)
 
+  const [reviewProduct, setReviewProduct] = useState<OpenFoodFactsResult | null>(null)
   const [selectedOwnFood, setSelectedOwnFood] = useState<Food | null>(null)
-  const [selectedOffProduct, setSelectedOffProduct] = useState<OpenFoodFactsResult | null>(null)
   const [quantity, setQuantity] = useState('100')
-  const [importing, setImporting] = useState(false)
 
   const { data: ownFoods, isLoading: ownLoading } = useFoods(ownSearch)
-  const importOffFood = useImportOpenFoodFactsFood()
+  const createFood = useCreateFood()
 
   function switchTab(next: Tab) {
     setTab(next)
     setSelectedOwnFood(null)
-    setSelectedOffProduct(null)
+    setReviewProduct(null)
     setScanError(null)
     setNotFoundBarcode(null)
   }
@@ -60,6 +72,17 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
     }
   }
 
+  async function handleOffPick(product: OpenFoodFactsResult) {
+    const existing = await findFoodByBarcode(user!.id, product.barcode)
+    if (existing) {
+      setSelectedOwnFood(existing)
+      setReviewProduct(null)
+      return
+    }
+    setSelectedOwnFood(null)
+    setReviewProduct(product)
+  }
+
   const handleBarcodeDetected = useCallback(
     async (code: string) => {
       setScanLoading(true)
@@ -69,13 +92,13 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
         const ownMatch = await findFoodByBarcode(user!.id, code)
         if (ownMatch) {
           setSelectedOwnFood(ownMatch)
-          setSelectedOffProduct(null)
+          setReviewProduct(null)
           return
         }
         const product = await getFoodByBarcode(code)
         if (product) {
-          setSelectedOffProduct(product)
           setSelectedOwnFood(null)
+          setReviewProduct(product)
           return
         }
         setNotFoundBarcode(code)
@@ -88,27 +111,17 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
     [user],
   )
 
-  async function handleConfirm() {
-    const quantityG = Number(quantity)
-    if (!quantityG || quantityG <= 0) return
-
-    if (selectedOwnFood) {
-      onSelect(selectedOwnFood, quantityG)
-      return
-    }
-    if (selectedOffProduct) {
-      setImporting(true)
-      try {
-        const food = await importOffFood.mutateAsync(selectedOffProduct)
-        onSelect(food, quantityG)
-      } finally {
-        setImporting(false)
-      }
-    }
+  async function handleReviewSubmit(food: NewFood) {
+    const created = await createFood.mutateAsync(food)
+    setSelectedOwnFood(created)
+    setReviewProduct(null)
   }
 
-  const hasSelection = !!selectedOwnFood || !!selectedOffProduct
-  const scanResult = selectedOwnFood ?? selectedOffProduct
+  function handleConfirm() {
+    const quantityG = Number(quantity)
+    if (!quantityG || quantityG <= 0 || !selectedOwnFood) return
+    onSelect(selectedOwnFood, quantityG)
+  }
 
   return (
     <div>
@@ -136,7 +149,7 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
         </button>
       </div>
 
-      {tab === 'off' && (
+      {tab === 'off' && !reviewProduct && (
         <div>
           <form onSubmit={handleOffSearch} className="mb-2 flex gap-2">
             <input
@@ -155,15 +168,8 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
               <button
                 key={product.barcode}
                 type="button"
-                onClick={() => {
-                  setSelectedOffProduct(product)
-                  setSelectedOwnFood(null)
-                }}
-                className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
-                  selectedOffProduct?.barcode === product.barcode
-                    ? 'border-green-500 bg-green-50'
-                    : 'border-gray-200 hover:bg-gray-50'
-                }`}
+                onClick={() => handleOffPick(product)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-left text-sm hover:bg-gray-50"
               >
                 <span className="font-medium text-gray-900">{product.name}</span>
                 {product.brand && <span className="text-gray-500"> ({product.brand})</span>}{' '}
@@ -190,7 +196,7 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
                 type="button"
                 onClick={() => {
                   setSelectedOwnFood(food)
-                  setSelectedOffProduct(null)
+                  setReviewProduct(null)
                 }}
                 className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
                   selectedOwnFood?.id === food.id ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:bg-gray-50'
@@ -209,7 +215,7 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
 
       {tab === 'scan' && (
         <div>
-          {!scanResult && !scanLoading && !scanError && !notFoundBarcode && (
+          {!selectedOwnFood && !reviewProduct && !scanLoading && !scanError && !notFoundBarcode && (
             <Suspense fallback={<p className="text-sm text-gray-500">Lädt Scanner...</p>}>
               <BarcodeScanner onDetected={handleBarcodeDetected} />
             </Suspense>
@@ -237,19 +243,16 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
               onCancel={() => setNotFoundBarcode(null)}
             />
           )}
-          {scanResult && (
+          {selectedOwnFood && !reviewProduct && (
             <div className="flex items-center justify-between rounded-lg border border-green-500 bg-green-50 px-3 py-2 text-sm">
               <span>
-                <span className="font-medium text-gray-900">{scanResult.name}</span>
-                {scanResult.brand && <span className="text-gray-500"> ({scanResult.brand})</span>}{' '}
-                <span className="text-gray-500">· {Math.round(scanResult.calories_per_100g)} kcal/100g</span>
+                <span className="font-medium text-gray-900">{selectedOwnFood.name}</span>
+                {selectedOwnFood.brand && <span className="text-gray-500"> ({selectedOwnFood.brand})</span>}{' '}
+                <span className="text-gray-500">· {Math.round(selectedOwnFood.calories_per_100g)} kcal/100g</span>
               </span>
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedOwnFood(null)
-                  setSelectedOffProduct(null)
-                }}
+                onClick={() => setSelectedOwnFood(null)}
                 className="shrink-0 text-xs text-gray-500 hover:underline"
               >
                 Anderen scannen
@@ -259,7 +262,23 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
         </div>
       )}
 
-      {hasSelection && (
+      {reviewProduct && (
+        <div>
+          <p className="mb-2 text-sm text-gray-600">
+            Angaben aus der Datenbank prüfen (z.B. bei Tippfehlern in Name/Marke) und speichern:
+          </p>
+          <FoodForm initial={toNewFoodInitial(reviewProduct)} submitLabel="Übernehmen" onSubmit={handleReviewSubmit} />
+          <button
+            type="button"
+            onClick={() => setReviewProduct(null)}
+            className="mt-2 text-xs text-gray-500 hover:underline"
+          >
+            Abbrechen
+          </button>
+        </div>
+      )}
+
+      {selectedOwnFood && !reviewProduct && (
         <div className="mt-4 flex items-end gap-3 border-t border-gray-100 pt-4">
           <div className="flex-1">
             <label className="mb-1 block text-sm font-medium text-gray-700">Menge (g)</label>
@@ -271,9 +290,7 @@ export function FoodPicker({ onSelect, submitLabel = 'Hinzufügen' }: FoodPicker
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-green-500 focus:outline-none"
             />
           </div>
-          <Button onClick={handleConfirm} disabled={importing}>
-            {importing ? '...' : submitLabel}
-          </Button>
+          <Button onClick={handleConfirm}>{submitLabel}</Button>
         </div>
       )}
     </div>

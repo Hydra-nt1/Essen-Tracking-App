@@ -6,6 +6,7 @@ import { Modal } from '../../components/Modal'
 import { FoodPicker } from '../../components/FoodPicker'
 import { MacroBar } from '../../components/MacroBar'
 import { DayStrip } from '../../components/DayStrip'
+import { AiChat } from './AiChat'
 import { todayKey } from '../../lib/date'
 import { macrosForQuantity, round1, sumMacros } from '../../lib/nutrition'
 import { useAddDiaryEntry, useDeleteDiaryEntry, useDiaryEntries } from '../diary/useDiary'
@@ -22,6 +23,7 @@ const meals: { type: MealType; label: string; icon: string }[] = [
 export function DashboardPage() {
   const [date, setDate] = useState(todayKey())
   const [activeMeal, setActiveMeal] = useState<MealType | null>(null)
+  const [pendingItem, setPendingItem] = useState<{ name: string; quantity_g: number } | null>(null)
 
   const { data: entries, isLoading: entriesLoading } = useDiaryEntries(date)
   const { data: profile, isLoading: profileLoading } = useProfile()
@@ -35,6 +37,13 @@ export function DashboardPage() {
       <h1 className="mb-4 flex items-center gap-2 text-xl font-semibold text-gray-900">
         <span>🏠</span> Übersicht
       </h1>
+
+      <AiChat
+        onPickItem={(item) => {
+          setPendingItem({ name: item.name, quantity_g: item.quantity_g })
+          setActiveMeal(item.meal_type)
+        }}
+      />
 
       <DayStrip selected={date} onSelect={setDate} />
 
@@ -73,7 +82,13 @@ export function DashboardPage() {
                   {meal.label}
                   <span className="font-normal text-gray-500">· {Math.round(mealCalories)} kcal</span>
                 </h2>
-                <Button variant="ghost" onClick={() => setActiveMeal(meal.type)}>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setPendingItem(null)
+                    setActiveMeal(meal.type)
+                  }}
+                >
                   + Hinzufügen
                 </Button>
               </div>
@@ -109,15 +124,21 @@ export function DashboardPage() {
 
       <Modal
         open={activeMeal !== null}
-        onClose={() => setActiveMeal(null)}
+        onClose={() => {
+          setActiveMeal(null)
+          setPendingItem(null)
+        }}
         title={`${meals.find((m) => m.type === activeMeal)?.label ?? ''} – Lebensmittel hinzufügen`}
       >
         {activeMeal && (
           <FoodPicker
             mealType={activeMeal}
+            initialSearch={pendingItem?.name}
+            initialQuantity={pendingItem?.quantity_g}
             onSelect={async (food, quantityG) => {
               await addEntry.mutateAsync({ food_id: food.id, date, meal_type: activeMeal, quantity_g: round1(quantityG) })
               setActiveMeal(null)
+              setPendingItem(null)
             }}
           />
         )}

@@ -37,12 +37,20 @@ interface FoodPickerProps {
   onSelect: (food: Food, quantityG: number) => void
   mealType?: MealType
   submitLabel?: string
+  initialSearch?: string
+  initialQuantity?: number
 }
 
-export function FoodPicker({ onSelect, mealType, submitLabel = 'Hinzufügen' }: FoodPickerProps) {
+export function FoodPicker({
+  onSelect,
+  mealType,
+  submitLabel = 'Hinzufügen',
+  initialSearch,
+  initialQuantity,
+}: FoodPickerProps) {
   const { user } = useAuth()
   const [mode, setMode] = useState<Mode>('search')
-  const [ownSearch, setOwnSearch] = useState('')
+  const [ownSearch, setOwnSearch] = useState(initialSearch ?? '')
   const [offResults, setOffResults] = useState<OpenFoodFactsResult[] | null>(null)
   const [offLoading, setOffLoading] = useState(false)
   const [offError, setOffError] = useState<string | null>(null)
@@ -53,7 +61,7 @@ export function FoodPicker({ onSelect, mealType, submitLabel = 'Hinzufügen' }: 
 
   const [reviewProduct, setReviewProduct] = useState<OpenFoodFactsResult | null>(null)
   const [selectedOwnFood, setSelectedOwnFood] = useState<Food | null>(null)
-  const [quantity, setQuantity] = useState('100')
+  const [quantity, setQuantity] = useState(initialQuantity ? String(initialQuantity) : '100')
   const [listening, setListening] = useState(false)
   const [voiceError, setVoiceError] = useState<string | null>(null)
 

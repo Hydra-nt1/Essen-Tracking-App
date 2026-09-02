@@ -44,7 +44,7 @@ export function AiChat({ onPickItem }: AiChatProps) {
     setError(null)
 
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke('chat', {
+      const { data, error: invokeError } = await supabase.functions.invoke('Chat', {
         body: { message: text },
       })
       if (invokeError) throw invokeError

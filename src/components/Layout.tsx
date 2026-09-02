@@ -3,6 +3,7 @@ import { useAuth } from '../features/auth/AuthContext'
 
 const navItems = [
   { to: '/', label: 'Übersicht', icon: '🏠', end: true },
+  { to: '/chat', label: 'KI-Chat', icon: '💬' },
   { to: '/foods', label: 'Lebensmittel', icon: '🍎' },
   { to: '/recipes', label: 'Rezepte', icon: '🍲' },
   { to: '/planning', label: 'Planung', icon: '📅' },

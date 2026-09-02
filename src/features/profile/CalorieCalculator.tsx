@@ -1,6 +1,17 @@
 import { useEffect, useState } from 'react'
 import { Button } from '../../components/Button'
-import { activityLabels, calculateTdee, type ActivityLevel, type Gender } from '../../lib/nutrition'
+import {
+  activityLabels,
+  applyGoalToTdee,
+  calculateTdee,
+  goalRateLabels,
+  weightGoalLabels,
+  type ActivityLevel,
+  type Gender,
+  type GoalAdjustedTargets,
+  type GoalRate,
+  type WeightGoal,
+} from '../../lib/nutrition'
 
 const STORAGE_KEY = 'foodtracker_calorie_calculator'
 
@@ -10,6 +21,8 @@ interface CalculatorState {
   heightCm: string
   weightKg: string
   activity: ActivityLevel
+  goal: WeightGoal
+  rate: GoalRate
 }
 
 const defaultState: CalculatorState = {
@@ -18,6 +31,8 @@ const defaultState: CalculatorState = {
   heightCm: '',
   weightKg: '',
   activity: 'light',
+  goal: 'maintain',
+  rate: 'moderate',
 }
 
 function loadState(): CalculatorState {
@@ -30,7 +45,7 @@ function loadState(): CalculatorState {
   }
 }
 
-export function CalorieCalculator({ onApply }: { onApply: (calories: number) => void }) {
+export function CalorieCalculator({ onApply }: { onApply: (targets: GoalAdjustedTargets) => void }) {
   const [open, setOpen] = useState(false)
   const [state, setState] = useState<CalculatorState>(loadState)
 
@@ -46,6 +61,7 @@ export function CalorieCalculator({ onApply }: { onApply: (calories: number) => 
   const tdee = canCalculate
     ? calculateTdee({ gender: state.gender, age, heightCm, weightKg, activity: state.activity })
     : null
+  const targets = tdee !== null ? applyGoalToTdee(tdee, state.goal, state.rate) : null
 
   return (
     <div className="rounded-lg border border-gray-200">
@@ -123,14 +139,54 @@ export function CalorieCalculator({ onApply }: { onApply: (calories: number) => 
             </select>
           </div>
 
-          {tdee !== null ? (
-            <div className="flex items-center justify-between rounded-lg bg-green-50 px-3 py-2">
-              <span className="text-sm text-green-800">
-                Geschätzter Bedarf: <strong>{tdee} kcal</strong>/Tag
-              </span>
-              <Button type="button" variant="secondary" onClick={() => onApply(tdee)}>
-                Übernehmen
-              </Button>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-500">Ziel</label>
+            <div className="flex gap-2">
+              {(Object.keys(weightGoalLabels) as WeightGoal[]).map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => setState((s) => ({ ...s, goal: g }))}
+                  className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium ${
+                    state.goal === g ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  {weightGoalLabels[g]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {state.goal !== 'maintain' && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-500">Tempo</label>
+              <select
+                value={state.rate}
+                onChange={(e) => setState((s) => ({ ...s, rate: e.target.value as GoalRate }))}
+                className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:border-green-500 focus:outline-none"
+              >
+                {Object.entries(goalRateLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {targets !== null ? (
+            <div className="rounded-lg bg-green-50 px-3 py-2">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-sm text-green-800">
+                  Ziel: <strong>{targets.calories} kcal</strong>/Tag
+                </span>
+                <Button type="button" variant="secondary" onClick={() => onApply(targets)}>
+                  Übernehmen
+                </Button>
+              </div>
+              <p className="text-xs text-green-700">
+                P {targets.protein}g · F {targets.fat}g · KH {targets.carbs}g
+              </p>
             </div>
           ) : (
             <p className="text-xs text-gray-400">Alter, Größe und Gewicht eingeben für eine Schätzung.</p>

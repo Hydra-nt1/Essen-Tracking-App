@@ -89,6 +89,52 @@ export function calculateTdee({ gender, age, heightCm, weightKg, activity }: Tde
   return Math.round(bmr * activityMultipliers[activity])
 }
 
+export type WeightGoal = 'lose' | 'maintain' | 'gain'
+export type GoalRate = 'light' | 'moderate' | 'aggressive'
+
+export const weightGoalLabels: Record<WeightGoal, string> = {
+  lose: 'Abnehmen',
+  maintain: 'Gewicht halten',
+  gain: 'Zunehmen',
+}
+
+export const goalRateLabels: Record<GoalRate, string> = {
+  light: '~0,25 kg/Woche',
+  moderate: '~0,5 kg/Woche',
+  aggressive: '~0,75 kg/Woche',
+}
+
+const goalRateAdjustment: Record<GoalRate, number> = {
+  light: 250,
+  moderate: 500,
+  aggressive: 750,
+}
+
+const macroSplitByGoal: Record<WeightGoal, { protein: number; fat: number; carbs: number }> = {
+  lose: { protein: 0.35, fat: 0.3, carbs: 0.35 },
+  maintain: { protein: 0.3, fat: 0.3, carbs: 0.4 },
+  gain: { protein: 0.3, fat: 0.25, carbs: 0.45 },
+}
+
+export interface GoalAdjustedTargets {
+  calories: number
+  protein: number
+  fat: number
+  carbs: number
+}
+
+export function applyGoalToTdee(tdee: number, goal: WeightGoal, rate: GoalRate): GoalAdjustedTargets {
+  const adjustment = goal === 'maintain' ? 0 : goalRateAdjustment[rate] * (goal === 'lose' ? -1 : 1)
+  const calories = Math.max(1200, Math.round(tdee + adjustment))
+  const split = macroSplitByGoal[goal]
+  return {
+    calories,
+    protein: Math.round((calories * split.protein) / 4),
+    fat: Math.round((calories * split.fat) / 9),
+    carbs: Math.round((calories * split.carbs) / 4),
+  }
+}
+
 export function macroCaloriePercentages(
   goals: { protein: number; fat: number; carbs: number },
   calorieGoal: number,

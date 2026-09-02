@@ -96,7 +96,14 @@ export function ProfilePage() {
             </div>
 
             <div className="mb-3">
-              <CalorieCalculator onApply={(kcal) => setCalorieGoal(String(kcal))} />
+              <CalorieCalculator
+                onApply={(targets) => {
+                  setCalorieGoal(String(targets.calories))
+                  setProteinGoal(String(targets.protein))
+                  setFatGoal(String(targets.fat))
+                  setCarbsGoal(String(targets.carbs))
+                }}
+              />
             </div>
 
             <div className="grid grid-cols-3 gap-3">

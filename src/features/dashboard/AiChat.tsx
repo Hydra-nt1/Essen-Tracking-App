@@ -54,7 +54,20 @@ export function AiChat({ onPickItem }: AiChatProps) {
         { role: 'assistant', content: data.reply as string, items: (data.items as ChatItem[]) ?? [] },
       ])
     } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err)
+      let detail = err instanceof Error ? err.message : String(err)
+      const context = (err as { context?: Response }).context
+      if (context && typeof context.json === 'function') {
+        try {
+          const body = await context.clone().json()
+          detail = JSON.stringify(body)
+        } catch {
+          try {
+            detail = await context.clone().text()
+          } catch {
+            // keep the generic message
+          }
+        }
+      }
       setError(`Der Assistent ist gerade nicht erreichbar. (${detail})`)
     } finally {
       setLoading(false)
